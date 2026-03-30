@@ -30,12 +30,7 @@ from sklearn.metrics           import (
     mean_absolute_error, mean_squared_error, r2_score
 )
 
-try:
-    from xgboost import XGBClassifier, XGBRegressor
-    XGB_OK = True
-except ImportError:
-    XGB_OK = False
-    print("⚠️  XGBoost not installed (pip install xgboost) — skipping")
+
 
 OUTPUT_DIR = './outputs'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -50,7 +45,6 @@ print("="*65)
 # STEP 1 · LOAD DATA
 # ─────────────────────────────────────────────
 print("\n[1/9] Loading dataset...")
-
 
 
 df = pd.read_csv("Data/Melbourne_housing_FULL.csv")
@@ -214,13 +208,11 @@ print("\n[6/9] Training Regression models...\n")
 
 reg_configs = {
     'RF Regressor'  : (RandomForestRegressor(n_estimators=100,random_state=42,n_jobs=-1), False),
-    'GB Regressor'  : (GradientBoostingRegressor(n_estimators=100,random_state=42),       False),
+   
     'Ridge Regression':(Ridge(alpha=1.0),                                                 True),
     'DT Regressor'  : (DecisionTreeRegressor(max_depth=8,random_state=42),                False),
 }
-if XGB_OK:
-    reg_configs['XGB Regressor'] = (
-        XGBRegressor(n_estimators=100,random_state=42,verbosity=0), False)
+
 
 reg_results = {}
 
@@ -597,20 +589,41 @@ if rf_reg and hasattr(rf_reg['model'],'feature_importances_'):
     fig.patch.set_facecolor(BG); plt.tight_layout(); save('reg_feature_importance.png')
 
 # ─────────────────────────────────────────────
-# STEP 9 · DONE
+# ─────────────────────────────────────────────
+# STEP 9 · SAVE BEST MODEL & DONE
 # ─────────────────────────────────────────────
 best_cls_name = max(cls_results, key=lambda n: cls_results[n]['accuracy'])
 best_reg_name = max(reg_results, key=lambda n: reg_results[n]['r2'])
 
-print("\n"+"="*65)
-print("  ✅ TRAINING COMPLETE!")
-print(f"  🏆 Best Classifier : {best_cls_name}  ({cls_results[best_cls_name]['accuracy']:.4f} acc)")
-print(f"  🏆 Best Regressor  : {best_reg_name}  (R²={reg_results[best_reg_name]['r2']:.4f})")
-print("\n  💾 PKL Models:")
-for f in os.listdir(OUTPUT_DIR):
-    if f.endswith('.pkl'): print(f"     • outputs/{f}")
-print("\n  📊 Graphs saved in outputs/:")
-for f in sorted(os.listdir(OUTPUT_DIR)):
-    if f.endswith('.png'): print(f"     • {f}")
-print("\n  🚀 Run: streamlit run app.py")
+# Save best model info → app.py reads this
+best_info = {
+    'best_classifier': {
+        'name':     best_cls_name,
+        'accuracy': cls_results[best_cls_name]['accuracy'],
+        'f1':       cls_results[best_cls_name]['f1'],
+        'roc_auc':  cls_results[best_cls_name]['roc_auc'],
+        'pkl_file': f"cls_{best_cls_name.replace(' ','_')}.pkl",
+    },
+    'best_regressor': {
+        'name':     best_reg_name,
+        'r2':       reg_results[best_reg_name]['r2'],
+        'mae':      reg_results[best_reg_name]['mae'],
+        'rmse':     reg_results[best_reg_name]['rmse'],
+        'pkl_file': f"reg_{best_reg_name.replace(' ','_')}.pkl",
+    },
+    'feature_cols':   feature_cols,
+    'class_names':    CLASS_NAMES,
+    'price_quartiles': [float(q1), float(q2), float(q3)],
+}
+with open(os.path.join(OUTPUT_DIR, 'best_models.json'), 'w') as f:
+    json.dump(best_info, f, indent=2)
+
+print("\n" + "="*65)
+print("  TRAINING COMPLETE!")
+print(f"  Best Classifier : {best_cls_name}  (Acc={cls_results[best_cls_name]['accuracy']:.4f})")
+print(f"  Best Regressor  : {best_reg_name}  (R2={reg_results[best_reg_name]['r2']:.4f})")
+print("\n  Saved: outputs/best_models.json")
+print("  PKL Models saved in outputs/")
+print("  Graphs saved in outputs/")
+print("\n  Run: streamlit run app.py")
 print("="*65)
